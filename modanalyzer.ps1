@@ -291,7 +291,8 @@ $outputPath = Join-Path (Split-Path $mods -Parent) "Mod_Scan_Report_$(Get-Date -
 
 # Visualizza un riepilogo e il percorso di salvataggio
 Write-Host "`r$(' ' * 80)`r" -NoNewline
-Write-Host "✅ Scansione completata." -ForegroundColor Green
+Write-Host "Scansione completata." -ForegroundColor Green
 Write-Host "Il rapporto è stato salvato in:" -ForegroundColor Green -NoNewline
 Write-Host " $outputPath" -ForegroundColor White
 Write-Host
+
