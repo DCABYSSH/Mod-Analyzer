@@ -1,13 +1,13 @@
 Clear-Host
-Write-Host " ▄████▄   ██▓   ▓█████ ▄▄▄        ██▀███      ██████   ██████ " -ForegroundColor Cyan
-Write-Host " ▒██▀ ▀█  ▓██▒  ▓█   ▀▒████▄     ▓██ ▒ ██▒    ▒██     ▒ ▒██     ▒ " -ForegroundColor Cyan
-Write-Host " ▒▓█    ▄ ▒██░  ▒███  ▒██  ▀█▄   ▓██ ░▄█ ▒    ░ ▓██▄   ░ ▓██▄   " -ForegroundColor Cyan
-Write-Host " ▒▓▓▄ ▄██▒▒██░  ▒▓█  ▄░██▄▄▄▄██ ▒██▀▀█▄       ▒  ██▒  ▒  ██▒" -ForegroundColor Cyan
-Write-Host " ▒ ▓███▀ ░░██████▒░▒████▒▓█   ▓██▒░██▓ ▒██▒   ▒██████▒▒▒██████▒▒" -ForegroundColor Cyan
-Write-Host " ░ ░▒ ▒  ░░ ▒░▓  ░░░ ▒░ ░▒▒   ▓▒█░░ ▒▓ ░▒▓░   ▒ ▒▓▒ ▒ ░▒ ▒▓▒ ▒ ░" -ForegroundColor Cyan
-Write-Host " ░  ▒  ░ ░ ▒  ░ ░ ░  ░ ▒   ▒▒ ░  ░▒ ░ ▒░    ░ ░▒  ░ ░░ ░▒  ░ ░" -ForegroundColor Cyan
-Write-Host " ░     ░   ░ ░       ░   ░   ▒      ░░   ░     ░  ░  ░  ░  ░  " -ForegroundColor Cyan
-Write-Host " ░ ░         ░   ░   ░     ░     ░    ░               ░         " -ForegroundColor Cyan
+Write-Host "▄████▄  ██▓   ▓█████ ▄▄▄       ██▀███    ██████  ██████" -ForegroundColor Cyan
+Write-Host "▒██▀ ▀█ ▓██▒  ▓█   ▀▒████▄    ▓██ ▒ ██▒  ▒██    ▒ ▒██    ▒" -ForegroundColor Cyan
+Write-Host "▒▓█    ▄ ▒██░  ▒███ ▒██  ▀█▄  ▓██ ░▄█ ▒  ░ ▓██▄   ░ ▓██▄  " -ForegroundColor Cyan
+Write-Host "▒▓▓▄ ▄██▒▒██░  ▒▓█  ▄░██▄▄▄▄██ ▒██▀▀█▄     ▒  ██▒  ▒  ██▒" -ForegroundColor Cyan
+Write-Host "▒ ▓███▀ ░░██████▒░▒████▒▓█   ▓██▒░██▓ ▒██▒  ▒██████▒▒▒██████▒▒" -ForegroundColor Cyan
+Write-Host "░ ░▒ ▒  ░░ ▒░▓  ░░░ ▒░ ░▒▒   ▓▒█░░ ▒▓ ░▒▓░  ▒ ▒▓▒ ▒ ░▒ ▒▓▒ ▒ ░" -ForegroundColor Cyan
+Write-Host "░  ▒  ░  ░ ▒  ░ ░ ░  ░ ▒   ▒▒ ░  ░▒ ░ ▒░  ░ ░▒  ░ ░░ ░▒  ░ ░" -ForegroundColor Cyan
+Write-Host "░       ░  ░ ░      ░   ░   ▒    ░░   ░   ░  ░  ░  ░  ░  " -ForegroundColor Cyan
+Write-Host "░ ░         ░  ░  ░   ░     ░   ░    ░            ░        " -ForegroundColor Cyan
 Write-Host "Made by " -ForegroundColor DarkGray -NoNewline
 Write-Host "DCABYSSH_"
 Write-Host
@@ -238,43 +238,60 @@ if ($unknownMods.Count -gt 0) {
 	}
 }
 
+# Determina il percorso del file di output nella stessa cartella dei mod
+$outputPath = Join-Path (Split-Path $mods -Parent) "Mod_Scan_Report_$(Get-Date -Format 'yyyyMMdd_HHmmss').txt"
+
+# -------------------------------
+# Generazione e salvataggio dell'output
+# -------------------------------
+
+# Reindirizza tutto l'output della scansione a $outputPath
+(
+    # --- Output finale ---
+    "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Mod Scan Report"
+    "==========================================================="
+    ""
+    
+    if ($verifiedMods.Count -gt 0) {
+        "{ Verified Mods }"
+        "-----------------"
+        foreach ($mod in $verifiedMods) {
+            ("> {0, -30} {1}" -f $mod.ModName, $mod.FileName)
+        }
+        ""
+    }
+
+    if ($unknownMods.Count -gt 0) {
+        "{ Unknown Mods }"
+        "----------------"
+        foreach ($mod in $unknownMods) {
+            if ($mod.ZoneId) {
+                ( "> {0, -30} {1}" -f $mod.FileName, $mod.ZoneId )
+                continue
+            }
+            "> $($mod.FileName)"
+        }
+        ""
+    }
+
+    if ($cheatMods.Count -gt 0) {
+        "{ Cheat Mods }"
+        "--------------"
+        foreach ($mod in $cheatMods) {
+            $outputLine = "> $($mod.FileName)"
+            if ($mod.DepFileName) {
+                $outputLine += " -> $($mod.DepFileName)"
+            }
+            $outputLine += " [$($mod.StringsFound -join ', ')]"
+            $outputLine
+        }
+        ""
+    }
+) | Out-File $outputPath -Encoding UTF8
+
+# Visualizza un riepilogo e il percorso di salvataggio
 Write-Host "`r$(' ' * 80)`r" -NoNewline
-
-# -------------------------------
-# Final output
-# -------------------------------
-
-if ($verifiedMods.Count -gt 0) {
-	Write-Host "{ Verified Mods }" -ForegroundColor DarkCyan
-	foreach ($mod in $verifiedMods) {
-		Write-Host ("> {0, -30}" -f $mod.ModName) -ForegroundColor Green -NoNewline
-		Write-Host "$($mod.FileName)" -ForegroundColor Gray
-	}
-	Write-Host
-}
-
-if ($unknownMods.Count -gt 0) {
-	Write-Host "{ Unknown Mods }" -ForegroundColor DarkCyan
-	foreach ($mod in $unknownMods) {
-		if ($mod.ZoneId) {
-			Write-Host ("> {0, -30}" -f $mod.FileName) -ForegroundColor DarkYellow -NoNewline
-			Write-Host "$($mod.ZoneId)" -ForegroundColor DarkGray
-			continue
-		}
-		Write-Host "> $($mod.FileName)" -ForegroundColor DarkYellow
-	}
-	Write-Host
-}
-
-if ($cheatMods.Count -gt 0) {
-    Write-Host "{ Cheat Mods }" -ForegroundColor DarkCyan
-	foreach ($mod in $cheatMods) {
-		Write-Host "> $($mod.FileName)" -ForegroundColor Red -NoNewline
-		if ($mod.DepFileName) {
-			Write-Host " ->" -ForegroundColor Gray -NoNewline
-			Write-Host " $($mod.DepFileName)" -ForegroundColor Red -NoNewline
-		}
-		Write-Host " [$($mod.StringsFound -join ', ')]" -ForegroundColor DarkMagenta
-	}
-	Write-Host
-}
+Write-Host "✅ Scansione completata." -ForegroundColor Green
+Write-Host "Il rapporto è stato salvato in:" -ForegroundColor Green -NoNewline
+Write-Host " $outputPath" -ForegroundColor White
+Write-Host
