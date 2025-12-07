@@ -56,8 +56,9 @@ if ($process) {
 function Find-JavaJarProcesses {
     Write-Host "{ Java -jar Process Scanner }" -ForegroundColor DarkCyan
 
-    # Regex aggiornata per catturare percorsi completi, argomenti VM e -jar
-    $pattern = '^(?:.*?\\)?(?:java|javaw)\.exe\b.*-jar\s+.*'
+    # Regex SUPER-GENERICA per catturare 'java' o 'javaw' seguita da '-jar'
+    # Risolve i problemi di rilevamento dovuti a percorsi/apici/argomenti VM.
+    $pattern = 'java(?:w)?.*? -jar .*'
 
     $procs = Get-CimInstance Win32_Process |
         Where-Object { $_.CommandLine -match $pattern }
@@ -169,12 +170,10 @@ function Check-Strings {
 	
 	$stringsFound = [System.Collections.Generic.HashSet[string]]::new()
 	
-	# Leggere il contenuto come byte o raw e cercare le stringhe
-	# Poiché stai cercando stringhe hardcoded nel binario o testo, Get-Content -Raw è una buona base
-	$fileContent = Get-Content -Raw $filePath -Encoding UTF8 # Aggiunta Encoding per robustezza
+	$fileContent = Get-Content -Raw $filePath -Encoding UTF8
 	
 	foreach ($string in $cheatStrings) {
-		if ($fileContent -match [regex]::Escape($string)) { # Uso di Escape per trattare la stringa come letterale
+		if ($fileContent -match [regex]::Escape($string)) {
 			$stringsFound.Add($string) | Out-Null
 		}
 	}
@@ -229,15 +228,18 @@ if ($unknownMods.Count -gt 0) {
 	$counter = 0
 	
 	try {
-		Write-Host "`r$(' ' * 80)`r" -NoNewline # Pulisci la riga dello spinner
+		Write-Host "`r$(' ' * 80)`r" -NoNewline
 		
 		if (Test-Path $tempDir) {
-			Remove-Item -Recurse -Force $tempDir
+			Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
 		}
 		
 		New-Item -ItemType Directory -Path $tempDir | Out-Null
 		Add-Type -AssemblyName System.IO.Compression.FileSystem
 	
+		# Creiamo un array per tenere traccia dei mod da rimuovere (quelli che risultano cheat)
+		$modsToRemove = @()
+		
 		foreach ($mod in $unknownMods) {
 			$counter++
 			$spin = $spinner[$counter % $spinner.Length]
@@ -246,7 +248,7 @@ if ($unknownMods.Count -gt 0) {
 			# Controlla il file .jar principale
 			$modStrings = Check-Strings $mod.FilePath
 			if ($modStrings.Count -gt 0) {
-				$unknownMods = $unknownMods | Where-Object { $_.FileName -ne $mod.FileName } # Rimuovi l'oggetto dall'array
+				$modsToRemove += $mod.FileName
 				$cheatMods += [PSCustomObject]@{ FileName = $mod.FileName; StringsFound = $modStrings }
 				continue
 			}
@@ -255,10 +257,16 @@ if ($unknownMods.Count -gt 0) {
 			$fileNameWithoutExt = [System.IO.Path]::GetFileNameWithoutExtension($mod.FileName)
 			$extractPath = Join-Path $tempDir $fileNameWithoutExt
 			
-			# Solo estrai se non è stato già marcato come cheat
 			if (-not (Test-Path $extractPath)) {
 				New-Item -ItemType Directory -Path $extractPath | Out-Null
-				[System.IO.Compression.ZipFile]::ExtractToDirectory($mod.FilePath, $extractPath)
+				# L'estrazione potrebbe fallire se il file non è uno zip ben formato
+				try {
+					[System.IO.Compression.ZipFile]::ExtractToDirectory($mod.FilePath, $extractPath)
+				} catch {
+					# Se l'estrazione fallisce, andiamo avanti al mod successivo
+					Remove-Item -Recurse -Force $extractPath -ErrorAction SilentlyContinue
+					continue
+				}
 			}
 			
 			$depJarsPath = Join-Path $extractPath "META-INF/jars"
@@ -270,14 +278,18 @@ if ($unknownMods.Count -gt 0) {
 			foreach ($jar in $depJars) {
 				$depStrings = Check-Strings $jar.FullName
 				if ($depStrings.Count -gt 0) {
-					$unknownMods = $unknownMods | Where-Object { $_.FileName -ne $mod.FileName } # Rimuovi l'oggetto dall'array
+					$modsToRemove += $mod.FileName
 					$cheatMods += [PSCustomObject]@{ FileName = $mod.FileName; DepFileName = $jar.Name; StringsFound = $depStrings }
-					break # Passa al mod successivo una volta trovato un cheat nella dipendenza
+					break # Passa al mod successivo
 				}
 			}
 		}
+		
+		# Rimuovi i mod identificati come cheat dall'array $unknownMods
+		$unknownMods = $unknownMods | Where-Object { $_.FileName -notin $modsToRemove }
+
 	} catch {
-		Write-Host "Error occured while scanning jar files! $($_.Exception.Message)" -ForegroundColor Red
+		Write-Host "`nError occured while scanning jar files! $($_.Exception.Message)" -ForegroundColor Red
 	} finally {
 		Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
 	}
@@ -319,7 +331,7 @@ if ($cheatMods.Count -gt 0) {
 			Write-Host " ->" -ForegroundColor Gray -NoNewline
 			Write-Host " $($mod.DepFileName)" -ForegroundColor Red -NoNewline
 		}
-		Write-Host " [$($mod.StringsFound -join ', ')]" -ForegroundColor DarkMagenta # Formatta l'output delle stringhe
+		Write-Host " [$($mod.StringsFound -join ', ')]" -ForegroundColor DarkMagenta
 	}
 	Write-Host
 }
